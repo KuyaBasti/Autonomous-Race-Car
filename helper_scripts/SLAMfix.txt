@@ -1,0 +1,176 @@
+ros2 topic pub /ackermann_cmd ackermann_msgs/AckermannDriveStamped '
+{
+  "header": {
+    "stamp": {"sec": 0, "nanosec": 0},
+    "frame_id": "base_link"
+  },
+  "drive": {
+    "steering_angle": 0.0,
+    "steering_angle_velocity": 0.0,
+    "speed": 1.0,
+    "acceleration": 0.0,
+    "jerk": 0.0
+  }
+}'
+
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+GENERATING A MAP WITH SLAM_TOOLBOX
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Step 1: Launch bringup_launch.py
+ ros2 launch f1tenth_stack slam_launch.py
+ 
+Step 2: Launch slam_launch.py (this should already be installed) 
+
+If this error occures: 
+[async_slam_toolbox_node-1] [INFO] [1734582865.428482464] [slam_toolbox]: Message Filter dropping message: frame 'laser' at time 1734582865.411 for reason 'Unknown
+
+This likely means that the 'laser' variable referenced in the base frame is incomplete
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+HOW TO FIX SLAM ERROR
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+ros2 param set /slam_toolbox scan_topic /scan
+
+this forces SLAM toolbox to subscribe to SCAN
+
+ros2 lifecycle set /slam_toolbox configure
+ros2 lifecycle set /slam_toolbox activate
+
+RESTART SLAM after command
+
+If you are not getting any data from 
+
+ros2 topic echo /map
+
+DO THIS
+
+ros2 topic list
+
+if slam_toolbox is not there then type this command
+
+ros2 launch slam_toolbox online_async_launch.py
+
+
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+GENERAL RVIZ2 NOTES
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Definitions 
+LIDAR Point Cloud Data - The data points collected for a given geographical area, terrian, building or space. 
+			  In our case, the dataset contains the X,Y coordinate of every visble detail of the site. 
+			  
+			  
+
+We use three main frames when localizing our robot
+
+{odom} - fixed frame of the robot starting location, continuous, smooth, but can drift.
+{map} - fixed frmae of the robot starting location and map origin, discrete, relatively accurate
+{base} - current location of the robot 
+			  
+SLAM Can Be Broken into Two Parts: 
+
+Frontend (intermediate processing between consecutive frames or point clouds:
+- Feature Extraction - FAST, SIFT, ORB, SURF
+- Feature Matching/Tracking
+- Determine transform of camera (robot) 
+
+Backend (Opimization methods to minimize the overall error to determine the map) :
+
+- Extended Kalman Filter
+- Particle Filter 
+- Least Squares 
+- Pose Graph Optimization 
+
+When running the SLAM algorithm each cell is either occupied (black) or empty (white/grey)
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+RUNNING SLAM TOOLBOX AND SETUP PARAMETERS
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+We first need a copy of the parameter file; found in the following path:
+
+/opt/ros/foxy/share/slam_toolbox/config/mapper_paras_online_async.yaml
+
+Online: running in real-team 
+Asynchronous - process the latest data (may skip some) processes running in parallel 
+
+We need to set the parameters are set up correctly     
+
+odom_frame: odom
+map_frame: map
+base_frame: base_footprint
+scan_topic: /scan
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+RVIZ2 SETTINGS FOR SLAM_TOOLBOX
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+> Global Options 
+Make sure the fixed frame is set to the map frame
+
+>  LaserScan 
+Make sure we are subscribed to the /scan topic 
+
+> Map 
+Make sure we are subscribed to the /map topic
+
+RobotModel
+
+TF (Transforms)
+Make sure base, base_link and laser are correctly referenced
+
+
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+RVIZ2 SETTINGS FOR PARTICLE_FILTER_LAUNCH (FOR REFERENCE)
+---------------------------------------------------------------------------------------------------------------------------------------------------------------
+> Global Options
+	Fixed Frame: map 
+	Background Color: 48;48;48
+	Frame Rate: 30
+	
+> Grid
+	Reference Frame: <Fixed Frame>
+	Plane Cell Count: 10
+	Normal Cell Count: 0 
+	Cell Size: 1
+	Line Style: Lines
+	Color: 160;160;164
+	Alpha: 0.5
+	Plane: XY
+	Offset: 0;0;0
+
+> Map
+	Topic: /map
+		History Policy: Keep Last
+		Reliability Policy: Reliable
+		Durability Policy: Transient Local
+	Update Topic: /map_updates
+		Depth: 5
+		History Policy: Keep Last
+		Reliability Policy: Reliable
+		Durability Policy: Volatile
+	Alpha: 0.7
+	Color Scheme: map
+	Draw Behind: 
+	Resolution: 0.05
+	Width: 178
+	Height: 156
+	Position: -2.6;-2.47;0
+	Orientation: 0;0;0;1
+	Use Timestamp: 
+	
+> Odometry
+	Topic: /pf/pose/odom
+	Position Tolerance: 0.1
+	Angle Tolerance: 0.1
+	Keep: 100
+	Shape: Arrow
+	Covariance: 'check'

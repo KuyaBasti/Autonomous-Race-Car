@@ -1,0 +1,12 @@
+CNN/data/
+.DS_Store
+._*
+__pycache__/
+*.pyc
+
+# raw datasets kept out of the repo
+automatic_bitmask_stitching/data/bag_stuff/
+Stitching/src/
+PerspectiveTransform/src/images/
+PerspectiveTransform/outputs/
+PerspectiveTransform/output/
