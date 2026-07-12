@@ -1,0 +1,32 @@
+MMtoInch25.4/1 <---- Wifi password
+
+
+
+# Run these commands sequentially when you get an error regarding bringup_launch.py which states Hokuyo problem. 
+You can run wifi.sh instead to simplify the process.
+
+[urg_node_driver-6] [ERROR] [1744655434.732852335] [urg_node]: Error connecting to Hokuyo: Could not open network Hokuyo:
+[urg_node_driver-6] 192.168.0.10:10940
+[urg_node_driver-6] could not open ethernet port.
+---------------------------------------------------------------------------------------------------
+sudo ip addr flush dev eth0
+sudo ip addr add 192.168.0.11/24 dev eth0
+sudo ip link set eth0 up
+---------------------------------------------------------------------------------------------------
+
+
+# If you get a build error when you use
+
+'colcon build'
+
+# Try this command to ignore the errors and continue building
+
+colcon build --symlink-install --packages-skip elapsed_time test_run
+
+# Then after completed building run this
+
+source install/setup.bash
+
+
+
+
