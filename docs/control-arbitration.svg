@@ -1,0 +1,191 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1152" width="1000" height="1152" role="img" aria-label="Autonomous Race Car control arbitration as a state diagram. Teleop: at bringup no button is held, so joy_teleop's default mapping sends speed 0 and steering 0 on /teleop at 20 Hz and the car holds at zero; holding LB (button 4) switches to the human_control mapping, which commands up to 3.0 m/s and 0.34 rad of steering either way (vesc_driver's servo limits of 0.11 to 0.715 cap the steering actually applied at about +0.24 and -0.26 rad); releasing all buttons returns to zero. Holding only RB (button 5) silences /teleop, and once /teleop is 0.2 s stale the mux forwards /drive: autonomous. From autonomous, releasing all buttons (zero command) or pressing LB (manual command) wins at once because /teleop has priority 100 over /drive at 10. Inside autonomous, obs_detect's /use_obs_avoid flag picks the controller: pure pursuit while false, gap follow while true; one scan with a LiDAR hit on the raceline within v times 0.5 s ahead, where v is the speed in the last /drive message, sets true and resets the counter, and 15 clear scans in a row set false. Concurrently and only if started by hand, emergency_braking sends speed 0 on /drive on every scan where any beam's TTC, r over max(v cos theta, 0.001), is under 1 s; there is no latch and the next pure pursuit or gap follow message replaces it, and in teleop it is outranked. Every command passes through ackermann_mux, which forwards a message only if no higher-priority input arrived in the last 0.2 s, then /ackermann_cmd to ackermann_to_vesc.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-red{fill:#ffebe9;stroke:#ff8182;stroke-width:1.5}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .dot{fill:#59636e}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-red{fill:#3c1618;stroke:#f85149}
+      .dot{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1000" height="1152" rx="12"/>
+  <text class="title" x="32" y="48">Autonomous Race Car (F1TENTH) — control arbitration</text>
+  <text class="sub" x="32" y="74">Gamepad buttons pick which mux input reaches the motor; obs_detect’s /use_obs_avoid flag picks the controller.</text>
+
+  <!-- ===== TELEOP composite ===== -->
+  <rect class="group" x="32" y="96" width="936" height="166" rx="12"/>
+  <text class="glbl" x="48" y="118">TELEOP · MUX FORWARDS /teleop (PRIORITY 100)</text>
+  <text class="note" x="952" y="118" text-anchor="end">joy, joy_teleop and ackermann_mux start in bringup_launch.py</text>
+
+  <circle class="dot" cx="212" cy="136" r="6"/>
+  <path class="edge" d="M212,142 V158" marker-end="url(#ah)"/>
+  <text class="elbl" x="226" y="140">bringup</text>
+
+  <rect class="b-orange" x="72" y="160" width="280" height="80" rx="10"/>
+  <text class="lbl" x="212" y="186" text-anchor="middle">Hold at zero</text>
+  <text class="note" x="212" y="206" text-anchor="middle">no button held: “default” mapping</text>
+  <text class="note" x="212" y="224" text-anchor="middle">speed 0, steering 0, repeated at 20 Hz</text>
+
+  <rect class="b-orange" x="648" y="160" width="280" height="80" rx="10"/>
+  <text class="lbl" x="788" y="186" text-anchor="middle">Manual drive</text>
+  <text class="note" x="788" y="206" text-anchor="middle">LB held: “human_control” mapping</text>
+  <text class="note" x="788" y="224" text-anchor="middle">|speed| ≤ 3.0 m/s · |steering| ≤ 0.34 rad</text>
+
+  <path class="edge" d="M352,188 H646" marker-end="url(#ah)"/>
+  <text class="elbl" x="500" y="180" text-anchor="middle">LB (button 4) pressed</text>
+  <path class="edge" d="M648,214 H354" marker-end="url(#ah)"/>
+  <text class="elbl" x="500" y="230" text-anchor="middle">all buttons released</text>
+
+  <!-- ===== hand-over between the composites ===== -->
+  <path class="edge" d="M500,262 V374" marker-end="url(#ah)"/>
+  <text class="elbl" x="510" y="296">only RB (button 5) held:</text>
+  <text class="elbl" x="510" y="310">/teleop goes quiet; /drive is</text>
+  <text class="elbl" x="510" y="324">forwarded once /teleop is 0.2 s stale</text>
+
+  <path class="edge" d="M200,376 V242" marker-end="url(#ah)"/>
+  <text class="elbl" x="190" y="296" text-anchor="end">all buttons released:</text>
+  <text class="elbl" x="190" y="310" text-anchor="end">zero command on /teleop</text>
+  <text class="elbl" x="190" y="324" text-anchor="end">wins at once (100 &gt; 10)</text>
+
+  <path class="edge" d="M800,376 V242" marker-end="url(#ah)"/>
+  <text class="elbl" x="810" y="296">LB (button 4) pressed:</text>
+  <text class="elbl" x="810" y="310">manual command on /teleop</text>
+  <text class="elbl" x="810" y="324">wins at once (100 &gt; 10)</text>
+
+  <!-- ===== AUTONOMOUS composite ===== -->
+  <rect class="group" x="32" y="376" width="936" height="388" rx="12"/>
+  <text class="glbl" x="48" y="398">AUTONOMOUS · MUX FORWARDS /drive (PRIORITY 10)</text>
+  <text class="note" x="952" y="398" text-anchor="end">these nodes keep running in TELEOP; the mux just drops /drive</text>
+
+  <!-- region 1: which controller publishes /drive -->
+  <circle class="dot" cx="212" cy="424" r="6"/>
+  <path class="edge" d="M212,430 V454" marker-end="url(#ah)"/>
+  <text class="elbl" x="226" y="428">autonomous_launch.py starts: flag false</text>
+
+  <rect class="b-green" x="72" y="456" width="280" height="80" rx="10"/>
+  <text class="lbl" x="212" y="482" text-anchor="middle">Pure pursuit drives</text>
+  <text class="note" x="212" y="502" text-anchor="middle">while /use_obs_avoid is false</text>
+  <text class="note" x="212" y="520" text-anchor="middle">publishes /drive on every PF pose</text>
+
+  <rect class="b-green" x="648" y="456" width="280" height="80" rx="10"/>
+  <text class="lbl" x="788" y="482" text-anchor="middle">Gap follow drives</text>
+  <text class="note" x="788" y="502" text-anchor="middle">while /use_obs_avoid is true</text>
+  <text class="note" x="788" y="520" text-anchor="middle">publishes /drive on every /scan</text>
+
+  <path class="edge" d="M352,484 H646" marker-end="url(#ah)"/>
+  <text class="elbl" x="500" y="460" text-anchor="middle">obs_detect: a LiDAR hit on the raceline</text>
+  <text class="elbl" x="500" y="474" text-anchor="middle">within v · 0.5 s ahead → true, counter = 0</text>
+  <path class="edge" d="M648,512 H354" marker-end="url(#ah)"/>
+  <text class="elbl" x="500" y="528" text-anchor="middle">hysteresis: 15 clear scans in a row → false</text>
+  <text class="elbl" x="500" y="542" text-anchor="middle">(clear scans 1–14 still send true)</text>
+
+  <!-- region 2: concurrent emergency brake -->
+  <line class="group" x1="32" y1="566" x2="968" y2="566"/>
+  <text class="glbl" x="48" y="588">CONCURRENT · emergency_braking — BUILT, BUT IN NO LAUNCH FILE</text>
+
+  <circle class="dot" cx="212" cy="612" r="6"/>
+  <path class="edge" d="M212,618 V638" marker-end="url(#ah)"/>
+  <text class="elbl" x="226" y="616">only if started by hand</text>
+
+  <rect class="b-gray" x="72" y="640" width="280" height="80" rx="10"/>
+  <text class="lbl" x="212" y="666" text-anchor="middle">Watching</text>
+  <text class="note" x="212" y="686" text-anchor="middle">TTC = r / max(v · cos θ, 0.001) per beam</text>
+  <text class="note" x="212" y="704" text-anchor="middle">v from /odom · checked on every /scan</text>
+
+  <rect class="b-red" x="648" y="640" width="280" height="80" rx="10"/>
+  <text class="lbl" x="788" y="666" text-anchor="middle">Brake command on /drive</text>
+  <text class="note" x="788" y="686" text-anchor="middle">speed 0, steering 0, once per such scan</text>
+  <text class="note" x="788" y="704" text-anchor="middle">PP / GF keep publishing: last one wins</text>
+
+  <path class="edge" d="M352,668 H646" marker-end="url(#ah)"/>
+  <text class="elbl" x="500" y="660" text-anchor="middle">any beam TTC &lt; 1 s</text>
+  <path class="edge" d="M648,696 H354" marker-end="url(#ah)"/>
+  <text class="elbl" x="500" y="712" text-anchor="middle">a scan with no TTC &lt; 1 s (no latch)</text>
+
+  <text class="note" x="72" y="748">In TELEOP these zero-speed /drive messages are outranked by /teleop (10 &lt; 100) and never reach the motor.</text>
+
+  <!-- ===== the mux rule underneath every transition ===== -->
+  <text class="glbl" x="32" y="800">EVERY COMMAND PASSES THROUGH ackermann_mux</text>
+
+  <rect class="b-orange" x="32" y="816" width="250" height="72" rx="10"/>
+  <text class="lbl mono" x="157" y="840" text-anchor="middle">/teleop</text>
+  <text class="note" x="157" y="860" text-anchor="middle">from joy_teleop</text>
+  <text class="note" x="157" y="878" text-anchor="middle">priority 100 · timeout 0.2 s</text>
+
+  <rect class="b-green" x="32" y="902" width="250" height="72" rx="10"/>
+  <text class="lbl mono" x="157" y="926" text-anchor="middle">/drive</text>
+  <text class="note" x="157" y="946" text-anchor="middle">pure_pursuit · gap_follow · brake</text>
+  <text class="note" x="157" y="964" text-anchor="middle">priority 10 · timeout 0.2 s</text>
+
+  <path class="edge" d="M282,852 H318 V883 H350" marker-end="url(#ah)"/>
+  <path class="edge" d="M282,938 H318 V907 H350" marker-end="url(#ah)"/>
+
+  <rect class="b-blue" x="352" y="859" width="284" height="72" rx="10"/>
+  <text class="lbl" x="494" y="883" text-anchor="middle">ackermann_mux</text>
+  <text class="note" x="494" y="903" text-anchor="middle">forwards a message only if no higher-</text>
+  <text class="note" x="494" y="921" text-anchor="middle">priority input arrived in the last 0.2 s</text>
+
+  <path class="edge" d="M636,895 H750" marker-end="url(#ah)"/>
+  <text class="elbl" x="693" y="887" text-anchor="middle">/ackermann_cmd</text>
+
+  <rect class="b-gray" x="752" y="859" width="216" height="72" rx="10"/>
+  <text class="lbl" x="860" y="883" text-anchor="middle">ackermann_to_vesc</text>
+  <text class="note" x="860" y="903" text-anchor="middle">ERPM = 3900 · v</text>
+  <text class="note" x="860" y="921" text-anchor="middle">→ VESC motor + servo</text>
+
+  <!-- ===== notes ===== -->
+  <text class="note" x="32" y="1004">RB’s own mapping (“autonomous_control”) only publishes Int8 0 to /dev/null: autonomy starts because /teleop goes quiet,</text>
+  <text class="note" x="32" y="1020">so holding any button other than LB has the same effect.</text>
+  <text class="note" x="32" y="1036">In obs_detect’s rule, v is the speed in the last /drive message (the look-ahead is 3.0 m until one arrives).</text>
+  <text class="note" x="32" y="1052">Its clear-scan counter starts at 0, so its first 14 clear scans after start-up also send true.</text>
+
+  <!-- ===== legend ===== -->
+  <text class="glbl" x="32" y="1084">LEGEND</text>
+  <rect class="b-orange" x="32" y="1096" width="26" height="14" rx="4"/>
+  <text class="note" x="68" y="1107">gamepad control (/teleop)</text>
+  <rect class="b-green" x="262" y="1096" width="26" height="14" rx="4"/>
+  <text class="note" x="298" y="1107">autonomous controller (/drive)</text>
+  <rect class="b-red" x="512" y="1096" width="26" height="14" rx="4"/>
+  <text class="note" x="548" y="1107">emergency brake (/drive)</text>
+  <rect class="b-blue" x="742" y="1096" width="26" height="14" rx="4"/>
+  <text class="note" x="778" y="1107">command mux</text>
+  <rect class="b-gray" x="32" y="1120" width="26" height="14" rx="4"/>
+  <text class="note" x="68" y="1131">idle / plumbing</text>
+  <circle class="dot" cx="275" cy="1127" r="6"/>
+  <text class="note" x="298" y="1131">start state</text>
+  <rect class="group" x="512" y="1120" width="26" height="14" rx="4"/>
+  <text class="note" x="548" y="1131">composite state: an edge from its border leaves any state inside</text>
+</svg>
