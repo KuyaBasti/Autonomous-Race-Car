@@ -16,12 +16,12 @@ camera frame).
 | Dir | Lang | What |
 |-----|------|------|
 | `darc_f1tenth_system/` | C++ / Python | On-car stack: launch files, VESC driver, LiDAR (urg_node) config, Ackermann mux, teleop, Arduino bridge |
-| `particle_filter/` | Python + CUDA | Monte Carlo localization (4000 particles, RangeLibc GPU ray marching) |
+| `particle_filter/` | Python | Monte Carlo localization (4000 particles, RangeLibc GPU ray marching) |
 | `f1tenth_gym_ros/` | C++ / Python | Racing algorithms (pure pursuit, gap follow, obs detect, emergency braking) + Dockerized simulator |
 | `Raceline-Optimization/` | Python | Offline min-curvature / min-time raceline generation from SLAM maps (TUM-based) |
 | `bag_extraction/` | Python | Pull images and particle-filter poses out of rosbag2 SQLite files (the drive-command extractor expects `/ackermann_mux/output`) |
 | `automatic_bitmask_stitching/` | Python | Sync camera frames to particle-filter poses; stitch masks onto the SLAM map |
-| `bitmask_filtering/` | Python | Mask cleanup library (flood fill, occupancy-map conventions) — unit tested |
+| `bitmask_filtering/` | Python | Mask cleanup library (flood fill, occupancy-map conventions) — smoke test, no assertions |
 | `PerspectiveTransform/` | Python / C++ | Bird's-eye-view homography from RealSense intrinsics + depth |
 | `CNN/` | Python | End-to-end steering/speed CNN (behavioral cloning, PilotNet-style) |
 | `docs/`, `helper_scripts/`, `tests/` | — | Notes, bringup scripts, sanity checks |
@@ -44,9 +44,11 @@ ros2 launch f1tenth_stack autonomous_launch.py       # pure pursuit + obs detect
 
 ```bash
 cd f1tenth_gym_ros
-docker compose up        # RViz in the browser at localhost:8080/vnc.html
-./run_tests.sh           # GoogleTest + pytest suites
+docker compose up                               # sim container + noVNC viewer at localhost:8080/vnc.html
+docker compose exec sim bash                    # second terminal: shell in /sim_ws
+ros2 launch f1tenth_gym_ros bringup_launch.py   # simulator + RViz + pure pursuit / obs detect / gap follow
+cd /sim_ws && source ./run_tests.sh   # inside the sim container: GoogleTest + pytest suites
 ```
 
-> Full architecture — every node, topic, and algorithm, with end-to-end
-> flowcharts: **[SYSTEM-DESIGN.md](SYSTEM-DESIGN.md)**
+> Full architecture — every major node, topic, and algorithm, with an end-to-end
+> flowchart: **[SYSTEM-DESIGN.md](SYSTEM-DESIGN.md)**

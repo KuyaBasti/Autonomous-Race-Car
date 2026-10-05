@@ -12,7 +12,7 @@
 > above everything; a time-to-collision node (`emergency_braking`) is built but
 > not started by any launch file.
 
-This document is the developer-facing map of the whole system — every node,
+This document is the developer-facing map of the whole system — every major node,
 **built or planned**, and how data moves between them. Read the flowchart
 top-to-bottom; dashed nodes are the roadmap.
 
@@ -91,7 +91,7 @@ can't kill a good hypothesis.
 | slam_toolbox config | Offline factory | — | ✅ built | `darc_f1tenth_system/f1tenth_stack/config/f1tenth_online_async.yaml` |
 | Map converter | Offline factory | Python / Jupyter | ✅ built | `Raceline-Optimization/map_converter.ipynb` |
 | Raceline optimizer | Offline factory | Python (TUM) | ✅ built | `Raceline-Optimization/main_globaltraj_f110.py` |
-| Particle filter (MCL) | Localization | Python + CUDA | ✅ built | `particle_filter/particle_filter/particle_filter.py` |
+| Particle filter (MCL) | Localization | Python (GPU ray marching via external RangeLibc) | ✅ built | `particle_filter/particle_filter/particle_filter.py` |
 | Velocity calculator | Localization | Python | ✅ built | `darc_f1tenth_system/darc_tools/` |
 | pure_pursuit | Racing brain | Python | ✅ built | `f1tenth_gym_ros/src/pure_pursuit/` |
 | obs_detect (supervisor) | Racing brain | C++ / Eigen | ✅ built | `f1tenth_gym_ros/src/obs_detect/` |
@@ -101,7 +101,7 @@ can't kill a good hypothesis.
 | Bag extraction | Vision R&D | Python / SQLite | ✅ built | `bag_extraction/` |
 | Timestamp sync + frame curation | Vision R&D | Python | ✅ built | `automatic_bitmask_stitching/` |
 | LangSAM segmentation | Vision R&D | PyTorch (Colab) | ✅ built | `automatic_bitmask_stitching/LangSAM.ipynb` |
-| Bitmask filtering | Vision R&D | Python / OpenCV | ✅ built (unit tested) | `bitmask_filtering/` |
+| Bitmask filtering | Vision R&D | Python / OpenCV | ✅ built (smoke test, no assertions) | `bitmask_filtering/` |
 | Perspective transform (IPM) | Vision R&D | Python / Open3D | ✅ built | `PerspectiveTransform/` |
 | Bitmask stitcher | Vision R&D | Python / OpenCV | ✅ built | `automatic_bitmask_stitching/bitmaskStitcher.py` |
 | Driving CNN | Vision R&D | TensorFlow / Keras | ✅ built (offline) | `CNN/cnn_model.py` |
