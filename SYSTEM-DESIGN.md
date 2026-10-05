@@ -8,8 +8,9 @@
 > **GPU particle filter** tells the car where it is 4000 hypotheses at a time,
 > **pure pursuit** chases the raceline, and a **supervisor** watches the road
 > ahead — the instant an obstacle blocks the line, a reactive **follow-the-gap**
-> planner takes the wheel until the path is clear. A human deadman switch and a
-> time-to-collision watchdog sit above everything.
+> planner takes the wheel until the path is clear. A human deadman button sits
+> above everything; a time-to-collision node (`emergency_braking`) is built but
+> not started by any launch file.
 
 This document is the developer-facing map of the whole system — every node,
 **built or planned**, and how data moves between them. Read the flowchart
@@ -19,131 +20,19 @@ top-to-bottom; dashed nodes are the roadmap.
 
 ## End-to-end flowchart
 
-```mermaid
-flowchart TD
-    %% ===== Sensors =====
-    subgraph SENSE["Sensors"]
-        lidar["Hokuyo LiDAR — urg_node<br/>1081-beam 2D scan → /scan"]:::sensor
-        cam["RealSense camera<br/>/camera/color/image_raw"]:::sensor
-        joy["Gamepad<br/>deadman switch"]:::sensor
-        ard["Arduino board<br/>4× wheel speed + accelerometer"]:::sensor
-    end
-
-    %% ===== Offline factory =====
-    subgraph OFFLINE["Offline map &amp; raceline factory — run once per track"]
-        slam["slam_toolbox<br/>online async SLAM, Ceres solver"]:::offline
-        map[("occupancy map<br/>.pgm + .yaml, 0.05 m/px")]:::data
-        conv["map_converter.ipynb<br/>centerline + track widths → CSV"]:::offline
-        opt["main_globaltraj_f110.py — TUM optimizer<br/>shortest path / min curvature / min lap time<br/>under ggv acceleration limits"]:::offline
-        raceline[("raceline .csv<br/>x, y, velocity profile")]:::data
-    end
-
-    %% ===== Localization =====
-    subgraph LOC["Localization — particle_filter"]
-        pf["Monte Carlo localization<br/>4000 particles, scan downsampled 18:1<br/>CUDA ray marching (RangeLibc rmgpu)<br/>4-component beam model, vectorized motion model"]:::loc
-    end
-
-    %% ===== Racing brain =====
-    subgraph BRAIN["Racing brain — autonomous_launch.py"]
-        obs["obs_detect (C++) — supervisor<br/>rasterizes upcoming raceline onto live<br/>occupancy grid (Bresenham); lookahead = v·t"]:::control
-        pp["pure_pursuit (Python)<br/>dual lookahead 2.5 / 1.8 m<br/>κ = 2y/L², speed from raceline profile"]:::control
-        gap["gap_follow (C++)<br/>disparity extender + safety bubble<br/>widest-gap steering, clearance-scaled speed"]:::control
-        ttc["emergency_braking (C++)<br/>per-beam TTC &lt; 1 s → speed 0"]:::safety
-    end
-
-    %% ===== Actuation =====
-    subgraph ACT["Command arbitration &amp; actuation — bringup_launch.py"]
-        teleop["joy_teleop<br/>deadman-gated, 3 m/s cap"]:::driver
-        mux["ackermann_mux<br/>joystick prio 100 &gt; navigation prio 10<br/>0.2 s input timeout"]:::safety
-        a2v["ackermann_to_vesc<br/>ERPM = 3900·v · servo = −1.2135·δ + 0.4"]:::driver
-        vesc["vesc_driver<br/>motor + steering servo"]:::driver
-        v2o["vesc_to_odom<br/>wheel odometry, 0.25 m wheelbase"]:::driver
-    end
-
-    %% ===== Vision R&D =====
-    subgraph VISION["Vision R&amp;D — offline CNN pipeline"]
-        bags[("rosbag2 recordings<br/>images + poses + drive cmds")]:::data
-        extract["bag_extraction<br/>decode straight from SQLite .db3"]:::vision
-        sync["timestamp sync<br/>interpolate bracketing poses per frame"]:::vision
-        sam["LangSAM segmentation<br/>prompt: 'red and white track boundary'<br/>zero manual labels"]:::vision
-        ipm["PerspectiveTransform<br/>bird's-eye homography H = K(R − t·nᵀ/d)K⁻¹<br/>pitch via RANSAC plane fit on depth cloud"]:::vision
-        stitch["bitmaskStitcher<br/>masks → SLAM map via PF poses<br/>(scale → rotate → translate)"]:::vision
-        cnn["CNN behavioral cloning<br/>PilotNet-style, 5 conv + 3 FC<br/>→ steering + speed"]:::vision
-        tinysam["TinySAM on-car segmentation ★<br/>real-time camera-driven racing"]:::planned
-    end
-
-    %% ===== Offline flows =====
-    lidar -->|teleop laps| slam
-    slam --> map
-    map --> conv
-    conv --> opt
-    opt --> raceline
-
-    %% ===== Online flows =====
-    map -->|nav2 map_server| pf
-    lidar -->|/scan| pf
-    v2o -->|/odom deltas| pf
-
-    raceline --> pp
-    raceline --> obs
-    pf -->|/pf/pose/odom| pp
-    pf -->|/pf/pose/odom| obs
-    lidar -->|/scan| obs
-    lidar -->|/scan| gap
-    lidar -->|/scan| ttc
-
-    obs -->|/use_obs_avoid| pp
-    obs -->|/use_obs_avoid| gap
-    pp -->|/drive — when clear| mux
-    gap -->|/drive — when avoiding| mux
-    pp -->|speed ceiling| gap
-    ttc -->|stop cmd| mux
-
-    joy --> teleop
-    teleop -->|/teleop| mux
-    mux -->|/ackermann_cmd| a2v
-    a2v --> vesc
-    vesc --> v2o
-
-    %% ===== Vision flows =====
-    cam -.->|recorded| bags
-    pf -.->|poses recorded| bags
-    mux -.->|drive cmds recorded| bags
-    bags --> extract
-    extract --> sync
-    sync --> sam
-    sam --> ipm
-    ipm --> stitch
-    sam --> cnn
-    sync --> cnn
-    cnn -.->|distill| tinysam
-
-    %% ===== Styles =====
-    classDef sensor fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    classDef offline fill:#E1F5EE,stroke:#0F6E56,color:#085041;
-    classDef loc fill:#EEEDFE,stroke:#534AB7,color:#3C3489,stroke-width:2px;
-    classDef control fill:#E6F1FB,stroke:#185FA5,color:#0C447C;
-    classDef safety fill:#FDEBEC,stroke:#B3261E,color:#8C1D18;
-    classDef driver fill:#FAECE7,stroke:#993C1D,color:#712B13;
-    classDef vision fill:#FFF8E1,stroke:#8A6D00,color:#5F4B00;
-    classDef data fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A;
-    classDef planned fill:#F6F6F4,stroke:#888780,color:#5F5E5A,stroke-dasharray:5 4;
-```
-
-**Legend** — ⬜ sensors / data · 🟩 offline factory (SLAM + raceline) · 🟪
-localization · 🟦 racing brain · 🟥 safety layers · 🟧 drivers / actuation ·
-🟨 vision R&D · ◌ dashed = planned (not yet built).
+<p align="center"><img src="docs/system-design-flowchart.svg" alt="Autonomous Race Car (F1TENTH) end-to-end flowchart. Offline, once per track: during teleop laps the Hokuyo LiDAR /scan feeds slam_toolbox; its 0.05 m/px occupancy map goes through map_converter.ipynb and the TUM raceline optimizer (minimum lap time by default) into a raceline CSV of x, y and speed. On the car, the LiDAR /scan feeds particle_filter (4000 particles, CUDA ray marching), obs_detect, gap_follow and emergency_braking; the map reaches particle_filter through nav2 map_server and the same raceline file feeds pure_pursuit and obs_detect. obs_detect publishes /use_obs_avoid so that either pure_pursuit or gap_follow publishes /drive; emergency_braking, which no launch file starts, publishes a speed-0 command on the same /drive topic. In bringup_launch.py, ackermann_mux gives /teleop from joy_teleop priority 100 over /drive priority 10, then ackermann_to_vesc and vesc_driver drive the VESC; vesc_to_odom publishes /odom back to particle_filter and emergency_braking; darc_arduino publishes /arduino with no subscriber. Offline, rosbag2 recordings of camera images, /pf/viz/inferred_pose and drive commands are extracted: imagePoseSync and bitmaskStitcher place LangSAM masks of kept frames on the SLAM map, and imageAckermannSync labels frames with steering and speed to train a PilotNet-style CNN on the masks. PerspectiveTransform is standalone and TinySAM is planned." width="100%"></p>
 
 ---
 
 ## How to read it: the three flows that matter
 
-1. **Two timescales, one interface.** The green offline factory runs *once per
-   track* (drive laps → SLAM map → optimized raceline). The online loop runs
+1. **Two timescales, one interface.** The offline factory (top right) runs *once
+   per track* (drive laps → SLAM map → optimized raceline). The online loop runs
    continuously and only ever sees two artifacts from it: the map (fed to the
    particle filter) and the raceline CSV (fed to pure pursuit *and* obs_detect —
-   both read the same file, so the supervisor always checks exactly the corridor
-   the tracker intends to drive).
+   both YAML configs point at the same file, so the supervisor checks exactly the
+   corridor the tracker intends to drive, as long as `trajectory_csv` and
+   `spline_file_name` stay in sync).
 
 2. **The supervisor never steers** (the `/use_obs_avoid` edges). `obs_detect`
    only answers one question each scan: *does anything intersect the raceline
@@ -155,56 +44,31 @@ localization · 🟦 racing brain · 🟥 safety layers · 🟧 drivers / actuat
    plan.
 
 3. **Safety is layered, not centralized** (the red nodes). The mux gives the
-   human joystick strictly higher priority than autonomy with a 0.2 s timeout —
-   release the deadman and the car coasts to a stop. Below that, an independent
-   time-to-collision watchdog brakes when any beam predicts impact within 1 s,
-   and gap_follow's corner check vetoes hard turns when a side wall is under
-   0.5 m away. Any layer can stop the car; none can override a human.
+   human's `/teleop` (priority 100) strictly higher priority than autonomy's
+   `/drive` (10), each with a 0.2 s timeout — hold button 4 to drive by hand,
+   hold button 5 to silence `/teleop` so `/drive` passes, and release both and
+   joy_teleop publishes a zero-speed command that overrides autonomy. A
+   time-to-collision node (`emergency_braking`) publishes speed 0 on `/drive`
+   when any beam predicts impact within 1 s, but no launch file starts it, and
+   when run by hand it shares the planners' priority-10 input rather than
+   outranking them. gap_follow's corner check vetoes hard turns when a side wall
+   is under 0.5 m away. Nothing autonomous can override a human.
 
-The **★ TinySAM node** is the vision pipeline's north star: everything upstream
-of it already exists (auto-labeled masks, a trained driving CNN) — it just
-hasn't been distilled into a model fast enough to run on the Jetson in the
-control loop.
+The **TinySAM node** (dashed) is the vision pipeline's north star: it would be
+trained on the LangSAM-labeled frames, run on the Jetson, and feed its masks to
+the driving CNN in the control loop (`CNN/proposal_pipeline.md`). The
+auto-labeled masks and an offline driving CNN already exist; TinySAM itself is
+not built yet.
 
 ---
 
 ## Deep dive 1 — control arbitration
 
-```mermaid
-stateDiagram-v2
-    [*] --> Teleop
-    Teleop --> Autonomous : deadman released,<br/>autonomy enabled
-    Autonomous --> Teleop : any joystick input<br/>(mux priority 100 vs 10)
-
-    state Autonomous {
-        [*] --> PurePursuit
-        PurePursuit --> GapFollow : obs_detect finds obstacle<br/>on raceline corridor
-        GapFollow --> PurePursuit : corridor clear for N cycles<br/>(hysteresis counter)
-    }
-
-    Autonomous --> EmergencyBrake : any beam TTC < 1 s
-    EmergencyBrake --> [*] : speed = 0
-```
+<p align="center"><img src="docs/control-arbitration.svg" alt="Autonomous Race Car control arbitration as a state diagram. Teleop: at bringup no button is held, so joy_teleop's default mapping sends speed 0 and steering 0 on /teleop at 20 Hz and the car holds at zero; holding LB (button 4) switches to the human_control mapping, which commands up to 3.0 m/s and 0.34 rad of steering either way (vesc_driver's servo limits of 0.11 to 0.715 cap the steering actually applied at about +0.24 and -0.26 rad); releasing all buttons returns to zero. Holding only RB (button 5) silences /teleop, and once /teleop is 0.2 s stale the mux forwards /drive: autonomous. From autonomous, releasing all buttons (zero command) or pressing LB (manual command) wins at once because /teleop has priority 100 over /drive at 10. Inside autonomous, obs_detect's /use_obs_avoid flag picks the controller: pure pursuit while false, gap follow while true; one scan with a LiDAR hit on the raceline within v times 0.5 s ahead, where v is the speed in the last /drive message, sets true and resets the counter, and 15 clear scans in a row set false. Concurrently and only if started by hand, emergency_braking sends speed 0 on /drive on every scan where any beam's TTC, r over max(v cos theta, 0.001), is under 1 s; there is no latch and the next pure pursuit or gap follow message replaces it, and in teleop it is outranked. Every command passes through ackermann_mux, which forwards a message only if no higher-priority input arrived in the last 0.2 s, then /ackermann_cmd to ackermann_to_vesc." width="100%"></p>
 
 ## Deep dive 2 — one particle filter update
 
-```mermaid
-sequenceDiagram
-    participant ODOM as vesc_to_odom
-    participant LIDAR as urg_node
-    participant PF as particle_filter
-    participant GPU as RangeLibc (CUDA)
-    participant CTRL as pure_pursuit / obs_detect
-
-    LIDAR->>PF: /scan (stored, downsampled 18:1 → ~60 beams)
-    ODOM->>PF: /odom delta — triggers the update
-    PF->>PF: resample 4000 particles by weight
-    PF->>PF: motion model + Gaussian dispersion (one vectorized op)
-    PF->>GPU: ray-cast query — every particle pose × ~60 beam angles
-    GPU-->>PF: expected ranges (ray marched against the map on GPU)
-    PF->>PF: precomputed beam-model table lookup → new weights
-    PF->>CTRL: /pf/pose/odom (weighted mean pose) + map→laser TF
-```
+<p align="center"><img src="docs/particle-filter-update.svg" alt="Autonomous Race Car, one particle filter update: at startup the node loads the map into RangeLibc rmgpu, uploads a 4-part beam-model table and spreads 4000 particles, which a later RViz /initialpose can re-seed; then urg_node scans are stored downsampled to every 18th beam, each vesc_to_odom message yields an odometry delta and calls update, which resamples 4000 particles by weight, applies the noisy motion model, has RangeLibc ray march about 60 beams per particle on the GPU and look up each beam in the table by observed and expected range, multiplying into one weight per particle, squashes and normalizes the weights, takes the weighted mean pose, broadcasts the map to laser TF and publishes /pf/pose/odom to pure_pursuit, obs_detect and velocity_calculator." width="100%"></p>
 
 The beam model is a 4-component mixture precomputed into a lookup table at
 startup: a Gaussian around the expected range (`z_hit`), a short-reading ramp
@@ -232,7 +96,7 @@ can't kill a good hypothesis.
 | pure_pursuit | Racing brain | Python | ✅ built | `f1tenth_gym_ros/src/pure_pursuit/` |
 | obs_detect (supervisor) | Racing brain | C++ / Eigen | ✅ built | `f1tenth_gym_ros/src/obs_detect/` |
 | gap_follow | Racing brain | C++ | ✅ built | `f1tenth_gym_ros/src/gap_follow/` |
-| emergency_braking | Safety | C++ | ✅ built | `f1tenth_gym_ros/src/emergency_braking/` |
+| emergency_braking | Safety | C++ | ✅ built (not in any launch file) | `f1tenth_gym_ros/src/emergency_braking/` |
 | Simulator bridge | Sim | Python / Docker | ✅ built | `f1tenth_gym_ros/src/f1tenth_gym_ros/` |
 | Bag extraction | Vision R&D | Python / SQLite | ✅ built | `bag_extraction/` |
 | Timestamp sync + frame curation | Vision R&D | Python | ✅ built | `automatic_bitmask_stitching/` |
@@ -254,7 +118,7 @@ can't kill a good hypothesis.
 | 1081 → ~60 | LiDAR beams per scan → beams the sensor model actually ray-casts (18:1 downsample) |
 | 0.05 m/px | SLAM map resolution |
 | 2.5 m / 1.8 m | pure pursuit lookahead above / below the 4 m/s speed threshold |
-| `L = v · t_buffer` | obs_detect corridor length — scales with current speed |
+| `L = v · t_buffer` | obs_detect corridor length — scales with the commanded speed (last `/drive` message) |
 | 1 s | time-to-collision threshold for emergency braking |
 | 0.2 s | mux input timeout (stale commands are dropped) |
 | 100 vs 10 | mux priority: joystick vs navigation |
@@ -271,11 +135,11 @@ can't kill a good hypothesis.
 | Stage | Name | What happens | Status |
 |---|---|---|---|
 | 1 | Mapping | teleop laps + `slam_launch.py` → save `.pgm`/`.yaml` from RViz | ✅ routine |
-| 2 | Raceline | clean map boundaries → `map_converter` → TUM optimizer → `raceline.csv` (on a laptop — CPU heavy) | ✅ routine |
+| 2 | Raceline | clean map boundaries → `map_converter` → TUM optimizer → `traj_race_cl-*.csv`, moved into `f1tenth_stack/racelines/` (on a laptop — CPU heavy) | ✅ routine |
 | 3 | Configuration | point `particle_filter.yaml`, `pure_pursuit.yaml`, `obs_detect.yaml` at the new map + raceline; `colcon build` | ✅ routine |
 | 4 | Localization | `particle_filter_launch.py` + RViz *2D Pose Estimate* to seed the filter | ✅ routine |
 | 5 | Race | `autonomous_launch.py` — supervisor arbitrates pure pursuit vs gap follow | ✅ routine |
-| 6 | Data capture | rosbag camera + pose + drive topics for the vision pipeline | ✅ routine |
+| 6 | Data capture | rosbag camera + pose + drive topics for the vision pipeline (the drive-command extractor reads `/ackermann_mux/output`; the mux here publishes `/ackermann_cmd`) | ✅ routine |
 | 7 | Camera-driven racing | TinySAM segmentation → CNN in the control loop | ⬜ planned |
 
 ---

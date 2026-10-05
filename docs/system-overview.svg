@@ -1,0 +1,179 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 676" width="1000" height="676" role="img" aria-label="Autonomous Race Car (F1TENTH) system overview: once per track, slam_toolbox maps the track from Hokuyo LiDAR scans on teleop laps and a TUM optimizer in min-lap-time mode turns the map into a raceline CSV on a laptop. On the NVIDIA Jetson under ROS 2 Foxy, particle_filter localizes against the map using /scan and wheel odometry from vesc_to_odom on /odom, which triggers each update, and publishes /pf/pose/odom to the racing brain. obs_detect watches the raceline ahead and sets /use_obs_avoid, which hands /drive from pure_pursuit to gap_follow. ackermann_mux lets the gamepad on /teleop (priority 100) override /drive (priority 10), with a 0.2 s timeout per input, and sends /ackermann_cmd to the VESC. emergency_braking would publish speed 0 on the same /drive topic when any LiDAR beam predicts a collision within 1 s, but is not started by any launch file. Offline, rosbag2 recordings of the RealSense camera, particle-filter pose and drive commands feed a LangSAM mask and driving-CNN pipeline.">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .b-planned{fill:none;stroke:#818b98;stroke-width:1.4;stroke-dasharray:5 4}
+    .dot{fill:#59636e}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+      .b-planned{stroke:#9198a1}
+      .dot{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1000" height="676" rx="12"/>
+  <text class="title" x="32" y="48">Autonomous Race Car (F1TENTH) — system overview</text>
+  <text class="sub" x="32" y="74">Map the track once; then the car localizes on that map, chases the raceline and swerves around obstacles.</text>
+
+  <!-- ===== groups ===== -->
+  <rect class="group" x="24" y="252" width="952" height="314" rx="12"/>
+  <text class="glbl" x="40" y="556">NVIDIA JETSON · ROS 2 FOXY</text>
+
+  <rect class="group" x="330" y="268" width="392" height="192" rx="12"/>
+  <text class="glbl" x="346" y="288">RACING BRAIN</text>
+
+  <!-- ===== edges (drawn under boxes) ===== -->
+  <!-- LiDAR feeds SLAM on teleop laps -->
+  <path class="edge" d="M370,180 V150" marker-end="url(#ah)"/>
+  <text class="elbl" x="378" y="170">teleop laps</text>
+
+  <!-- map -> particle filter, raceline -> racing brain -->
+  <path class="edge" d="M110,148 V288" marker-end="url(#ah)"/>
+  <text class="elbl" x="118" y="200">map · 0.05 m/px</text>
+  <path class="edge" d="M680,148 V266" marker-end="url(#ah)"/>
+  <text class="elbl" x="688" y="200">raceline CSV (x, y, speed)</text>
+
+  <!-- LiDAR /scan -> particle filter and -> racing brain -->
+  <path class="edge" d="M290,208 H210 V288" marker-end="url(#ah)"/>
+  <text class="elbl" x="250" y="200" text-anchor="middle">/scan</text>
+  <path class="edge" d="M450,208 H560 V266" marker-end="url(#ah)"/>
+  <text class="elbl" x="505" y="200" text-anchor="middle">/scan</text>
+
+  <!-- particle filter pose -> racing brain -->
+  <path class="edge" d="M228,326 H328" marker-end="url(#ah)"/>
+  <text class="elbl" x="278" y="318" text-anchor="middle">/pf/pose/odom</text>
+
+  <!-- supervisor picks which controller speaks -->
+  <path class="edge" d="M433,354 V390" marker-end="url(#ah)"/>
+  <path class="edge" d="M619,354 V390" marker-end="url(#ah)"/>
+  <text class="elbl" x="526" y="376" text-anchor="middle">/use_obs_avoid</text>
+
+  <!-- both controllers publish the same /drive topic -> mux -->
+  <path class="edge" d="M433,448 V480 H788" marker-end="url(#ah)"/>
+  <path class="edge" d="M619,448 V480"/>
+  <circle class="dot" cx="619" cy="480" r="3.5"/>
+  <text class="elbl" x="748" y="472" text-anchor="middle">/drive</text>
+
+  <!-- emergency braking would join the same /drive topic -->
+  <path class="edge-dash" d="M254,480 H427" marker-end="url(#ah)"/>
+  <circle class="dot" cx="433" cy="480" r="3.5"/>
+  <text class="elbl" x="340" y="497" text-anchor="middle">speed 0 on the same /drive</text>
+
+  <!-- gamepad -> mux, mux -> VESC -->
+  <path class="edge" d="M878,164 V442" marker-end="url(#ah)"/>
+  <text class="elbl" x="870" y="290" text-anchor="end">/teleop</text>
+  <text class="elbl" x="870" y="304" text-anchor="end">no button held → speed 0</text>
+  <path class="edge" d="M856,516 V580" marker-end="url(#ah)"/>
+  <text class="elbl" x="864" y="552">/ackermann_cmd</text>
+
+  <!-- wheel odometry loop: VESC -> /odom -> particle filter (and emergency braking) -->
+  <path class="edge" d="M812,582 V536 H36 V326 H54" marker-end="url(#ah)"/>
+  <text class="elbl" x="520" y="528" text-anchor="middle">/odom · wheel odometry from vesc_to_odom</text>
+  <circle class="dot" cx="36" cy="480" r="3.5"/>
+  <path class="edge-dash" d="M36,480 H54" marker-end="url(#ah)"/>
+
+  <!-- camera recordings -> offline vision R&D -->
+  <path class="edge-dash" d="M200,610 H260" marker-end="url(#ah)"/>
+  <text class="elbl" x="231" y="602" text-anchor="middle">rosbag2</text>
+
+  <!-- ===== boxes ===== -->
+  <!-- once per track -->
+  <rect class="b-purple" x="32" y="92" width="720" height="56" rx="10"/>
+  <text class="lbl" x="392" y="116" text-anchor="middle">Map &amp; raceline factory · once per track</text>
+  <text class="note" x="392" y="135" text-anchor="middle">slam_toolbox maps on the car → TUM optimizer (min-lap-time mode) on a laptop</text>
+
+  <!-- hardware -->
+  <rect class="b-orange" x="790" y="92" width="176" height="72" rx="10"/>
+  <text class="lbl" x="878" y="116" text-anchor="middle">Gamepad</text>
+  <text class="note" x="878" y="135" text-anchor="middle">hold button 4: manual</text>
+  <text class="note" x="878" y="152" text-anchor="middle">hold button 5: autonomy</text>
+
+  <rect class="b-orange" x="290" y="180" width="160" height="56" rx="10"/>
+  <text class="lbl" x="370" y="204" text-anchor="middle">Hokuyo LiDAR</text>
+  <text class="note" x="370" y="223" text-anchor="middle">1081-beam 2D scan</text>
+
+  <rect class="b-orange" x="790" y="582" width="176" height="56" rx="10"/>
+  <text class="lbl" x="878" y="606" text-anchor="middle">VESC</text>
+  <text class="note" x="878" y="625" text-anchor="middle">motor + steering servo</text>
+
+  <rect class="b-orange" x="32" y="582" width="168" height="56" rx="10"/>
+  <text class="lbl" x="116" y="606" text-anchor="middle">RealSense camera</text>
+  <text class="note" x="116" y="625" text-anchor="middle">/camera/color/image_raw</text>
+
+  <!-- localization -->
+  <rect class="b-green" x="56" y="290" width="172" height="72" rx="10"/>
+  <text class="lbl" x="142" y="314" text-anchor="middle">particle_filter</text>
+  <text class="note" x="142" y="333" text-anchor="middle">4000 particles · CUDA</text>
+  <text class="note" x="142" y="350" text-anchor="middle">updates on every /odom</text>
+
+  <!-- racing brain -->
+  <rect class="b-green" x="346" y="298" width="360" height="56" rx="10"/>
+  <text class="lbl" x="526" y="322" text-anchor="middle">obs_detect (supervisor)</text>
+  <text class="note" x="526" y="341" text-anchor="middle">flags an obstacle on the raceline ahead</text>
+
+  <rect class="b-green" x="346" y="392" width="174" height="56" rx="10"/>
+  <text class="lbl" x="433" y="416" text-anchor="middle">pure_pursuit</text>
+  <text class="note" x="433" y="435" text-anchor="middle">chases the raceline</text>
+
+  <rect class="b-green" x="532" y="392" width="174" height="56" rx="10"/>
+  <text class="lbl" x="619" y="416" text-anchor="middle">gap_follow</text>
+  <text class="note" x="619" y="435" text-anchor="middle">reactive follow-the-gap</text>
+
+  <!-- built but not launched -->
+  <rect class="b-planned" x="56" y="444" width="198" height="72" rx="10"/>
+  <text class="lbl" x="155" y="468" text-anchor="middle">emergency_braking</text>
+  <text class="note" x="155" y="487" text-anchor="middle">per-beam TTC &lt; 1 s → speed 0</text>
+  <text class="note" x="155" y="504" text-anchor="middle">not in any launch file</text>
+
+  <!-- arbitration -->
+  <rect class="b-blue" x="790" y="444" width="176" height="72" rx="10"/>
+  <text class="lbl" x="878" y="468" text-anchor="middle">ackermann_mux</text>
+  <text class="note" x="878" y="487" text-anchor="middle">teleop 100 &gt; drive 10</text>
+  <text class="note" x="878" y="504" text-anchor="middle">0.2 s input timeout</text>
+
+  <!-- offline vision R&D -->
+  <rect class="b-purple" x="262" y="582" width="260" height="72" rx="10"/>
+  <text class="lbl" x="392" y="606" text-anchor="middle">Vision R&amp;D · offline</text>
+  <text class="note" x="392" y="625" text-anchor="middle">camera frames + PF pose + drive cmds</text>
+  <text class="note" x="392" y="642" text-anchor="middle">→ LangSAM masks → driving CNN</text>
+
+  <!-- legend -->
+  <rect class="b-orange" x="540" y="590" width="26" height="14" rx="4"/>
+  <text class="note" x="574" y="601">hardware</text>
+  <rect class="b-green" x="540" y="611" width="26" height="14" rx="4"/>
+  <text class="note" x="574" y="622">ROS 2 node</text>
+  <rect class="b-blue" x="540" y="632" width="26" height="14" rx="4"/>
+  <text class="note" x="574" y="643">safety arbiter</text>
+  <rect class="b-purple" x="664" y="590" width="26" height="14" rx="4"/>
+  <text class="note" x="698" y="601">offline</text>
+  <rect class="b-planned" x="664" y="611" width="26" height="14" rx="4"/>
+  <text class="note" x="698" y="622">not launched</text>
+</svg>

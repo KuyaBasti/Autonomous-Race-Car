@@ -1,0 +1,224 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1452" width="1000" height="1452" role="img" aria-label="Autonomous Race Car, one particle filter update: at startup the node loads the map into RangeLibc rmgpu, uploads a 4-part beam-model table and spreads 4000 particles, which a later RViz /initialpose can re-seed; then urg_node scans are stored downsampled to every 18th beam, each vesc_to_odom message yields an odometry delta and calls update, which resamples 4000 particles by weight, applies the noisy motion model, has RangeLibc ray march about 60 beams per particle on the GPU and look up each beam in the table by observed and expected range, multiplying into one weight per particle, squashes and normalizes the weights, takes the weighted mean pose, broadcasts the map to laser TF and publishes /pf/pose/odom to pure_pursuit, obs_detect and velocity_calculator">
+  <style>
+    .bg{fill:#ffffff}
+    .title{fill:#1f2328;font:600 22px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .sub{fill:#59636e;font:14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .lbl{fill:#1f2328;font:600 14px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .note{fill:#59636e;font:12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .glbl{fill:#59636e;font:600 12px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .elbl{fill:#59636e;font:11px -apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif}
+    .edge{stroke:#818b98;stroke-width:1.6;fill:none}
+    .edge-dash{stroke:#818b98;stroke-width:1.6;fill:none;stroke-dasharray:6 4}
+    .arrow{fill:#818b98}
+    .group{fill:none;stroke:#d1d9e0;stroke-width:1.2;stroke-dasharray:4 4}
+    .b-blue{fill:#ddf4ff;stroke:#54aeff;stroke-width:1.5}
+    .b-green{fill:#dafbe1;stroke:#4ac26b;stroke-width:1.5}
+    .b-purple{fill:#fbefff;stroke:#c297ff;stroke-width:1.5}
+    .b-orange{fill:#fff1e5;stroke:#fb8f44;stroke-width:1.5}
+    .b-gray{fill:#f6f8fa;stroke:#d1d9e0;stroke-width:1.5}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .title,.lbl{fill:#e6edf3}
+      .sub,.note,.glbl,.elbl{fill:#9198a1}
+      .edge,.edge-dash{stroke:#9198a1}
+      .arrow{fill:#9198a1}
+      .group{stroke:#3d444d}
+      .b-blue{fill:#0c2d6b;stroke:#4493f8}
+      .b-green{fill:#0f3b1e;stroke:#3fb950}
+      .b-purple{fill:#2e1a4f;stroke:#ab7df8}
+      .b-orange{fill:#3d1f0a;stroke:#f0883e}
+      .b-gray{fill:#151b23;stroke:#3d444d}
+    }
+  </style>
+  <defs>
+    <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path class="arrow" d="M0,0 L10,5 L0,10 z"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1000" height="1452" rx="12"/>
+  <text class="title" x="32" y="48">Autonomous Race Car — one particle filter update</text>
+  <text class="sub" x="32" y="74">Each /odom message runs one step: move 4000 particles, re-weight them by GPU ray casting, publish the mean pose.</text>
+
+  <!-- legend row 1: participant / step-badge colours -->
+  <g>
+    <rect class="b-orange" x="32" y="90" width="12" height="12" rx="3"/>
+    <text class="elbl" x="50" y="100">sensor nodes</text>
+    <rect class="b-green" x="130" y="90" width="12" height="12" rx="3"/>
+    <text class="elbl" x="148" y="100">particle_filter</text>
+    <rect class="b-purple" x="232" y="90" width="12" height="12" rx="3"/>
+    <text class="elbl" x="250" y="100">RangeLibc (rmgpu)</text>
+    <rect class="b-blue" x="364" y="90" width="12" height="12" rx="3"/>
+    <text class="elbl" x="382" y="100">pose subscribers</text>
+    <text class="elbl" x="492" y="100">badge colour = who acts · A–C once at startup</text>
+  </g>
+  <!-- legend row 2: arrow styles -->
+  <g>
+    <line class="edge" x1="32" y1="120" x2="62" y2="120" marker-end="url(#ah)"/>
+    <text class="elbl" x="70" y="124">message or call</text>
+    <line class="edge-dash" x1="170" y1="120" x2="200" y2="120" marker-end="url(#ah)"/>
+    <text class="elbl" x="208" y="124">result (array filled in place)</text>
+    <text class="elbl" x="492" y="124">1 per /scan · 2 per /odom · 3–13 when update() proceeds</text>
+  </g>
+
+  <!-- participants + lifelines -->
+  <g>
+    <line class="group" x1="75" y1="216" x2="75" y2="1428"/>
+    <line class="group" x1="215" y1="216" x2="215" y2="1428"/>
+    <line class="group" x1="360" y1="216" x2="360" y2="1428"/>
+    <line class="group" x1="745" y1="216" x2="745" y2="1428"/>
+    <line class="group" x1="905" y1="216" x2="905" y2="1428"/>
+    <rect class="b-orange" x="14" y="140" width="122" height="76" rx="10"/>
+    <text class="lbl" x="75" y="172" text-anchor="middle">urg_node</text>
+    <text class="note" x="75" y="192" text-anchor="middle">Hokuyo driver</text>
+    <rect class="b-orange" x="150" y="140" width="130" height="76" rx="10"/>
+    <text class="lbl" x="215" y="172" text-anchor="middle">vesc_to_odom</text>
+    <text class="note" x="215" y="192" text-anchor="middle">wheel odometry</text>
+    <rect class="b-green" x="290" y="140" width="140" height="76" rx="10"/>
+    <text class="lbl" x="360" y="172" text-anchor="middle">particle_filter</text>
+    <text class="note" x="360" y="192" text-anchor="middle">Python MCL node</text>
+    <rect class="b-purple" x="680" y="140" width="130" height="76" rx="10"/>
+    <text class="lbl" x="745" y="172" text-anchor="middle">RangeLibc</text>
+    <text class="note" x="745" y="192" text-anchor="middle">rmgpu (CUDA)</text>
+    <rect class="b-blue" x="822" y="140" width="166" height="76" rx="10"/>
+    <text class="lbl" x="905" y="164" text-anchor="middle">pose subscribers</text>
+    <text class="note" x="905" y="184" text-anchor="middle">pure_pursuit · obs_detect</text>
+    <text class="note" x="905" y="200" text-anchor="middle">velocity_calculator</text>
+  </g>
+
+  <!-- fragment: once at startup -->
+  <g>
+    <rect class="group" x="278" y="236" width="512" height="230" rx="8"/>
+    <rect class="b-gray" x="278" y="236" width="156" height="26" rx="8"/>
+    <text class="glbl" x="290" y="253">ONCE AT STARTUP</text>
+  </g>
+
+  <!-- fragment: MCL() -->
+  <g>
+    <rect class="group" x="278" y="704" width="512" height="492" rx="8"/>
+    <rect class="b-gray" x="278" y="704" width="350" height="26" rx="8"/>
+    <text class="glbl" x="290" y="721">MCL() — one Monte Carlo localization step</text>
+  </g>
+
+  <!-- steps, top to bottom -->
+  <g>
+    <!-- A: map into RangeLibc -->
+    <line class="edge" x1="372" y1="310" x2="744" y2="310" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="310" r="12"/>
+    <text class="lbl" x="360" y="315" text-anchor="middle">A</text>
+    <text class="note mono" x="552" y="282" text-anchor="middle">PyRayMarchingGPU(oMap, MAX_RANGE_PX)</text>
+    <text class="note" x="552" y="298" text-anchor="middle">map from /map_server/map (GetMap); max range 10 m</text>
+
+    <!-- B: beam-model table into RangeLibc -->
+    <line class="edge" x1="372" y1="372" x2="744" y2="372" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="372" r="12"/>
+    <text class="lbl" x="360" y="377" text-anchor="middle">B</text>
+    <text class="note mono" x="552" y="344" text-anchor="middle">set_sensor_model(sensor_model_table)</text>
+    <text class="note" x="552" y="360" text-anchor="middle">4-part beam-model table: z_hit, z_short, z_max, z_rand</text>
+
+    <!-- C: global initialization -->
+    <path class="edge" d="M372,418 H386 Q394,418 394,426 V432 Q394,440 386,440 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="418" r="12"/>
+    <text class="lbl" x="360" y="423" text-anchor="middle">C</text>
+    <text class="note" x="404" y="417">4000 particles spread over free map cells, all</text>
+    <text class="note" x="404" y="433">with equal weight (initialize_global); a later RViz</text>
+    <text class="note" x="404" y="449">/initialpose re-seeds them around that pose</text>
+
+    <!-- 1: scan arrives, stored only -->
+    <line class="edge" x1="87" y1="506" x2="359" y2="506" marker-end="url(#ah)"/>
+    <circle class="b-orange" cx="75" cy="506" r="12"/>
+    <text class="lbl" x="75" y="511" text-anchor="middle">1</text>
+    <text class="note" x="99" y="498">/scan (LaserScan)</text>
+    <text class="note" x="374" y="502">lidarCB: keep every 18th beam (~60 per scan)</text>
+    <text class="note" x="374" y="518">and store them; a scan never triggers an update</text>
+
+    <!-- 2: odom arrives, triggers update -->
+    <line class="edge" x1="227" y1="580" x2="359" y2="580" marker-end="url(#ah)"/>
+    <circle class="b-orange" cx="215" cy="580" r="12"/>
+    <text class="lbl" x="215" y="585" text-anchor="middle">2</text>
+    <text class="note" x="239" y="572">/odom (Odometry)</text>
+    <text class="note" x="374" y="564">odomCB: /odom holds a dead-reckoned pose, so take</text>
+    <text class="note" x="374" y="580">the delta to the previous one, in the car frame,</text>
+    <text class="note" x="374" y="596">→ (dx, dy, dθ); every /odom message calls update()</text>
+
+    <!-- 3: update() guard + snapshot -->
+    <path class="edge" d="M372,646 H386 Q394,646 394,654 V660 Q394,668 386,668 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="646" r="12"/>
+    <text class="lbl" x="360" y="651" text-anchor="middle">3</text>
+    <text class="note" x="404" y="645">update(): only when map, scan and odom are ready</text>
+    <text class="note" x="404" y="661">and the state lock is free; snapshots the latest</text>
+    <text class="note" x="404" y="677">scan + delta, then zeroes the delta</text>
+
+    <!-- 4: resample -->
+    <path class="edge" d="M372,762 H386 Q394,762 394,770 V776 Q394,784 386,784 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="762" r="12"/>
+    <text class="lbl" x="360" y="767" text-anchor="middle">4</text>
+    <text class="note" x="404" y="769">resample: draw 4000 particles with replacement,</text>
+    <text class="note" x="404" y="785">each picked with probability = its weight</text>
+
+    <!-- 5: motion model -->
+    <path class="edge" d="M372,830 H386 Q394,830 394,838 V844 Q394,852 386,852 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="830" r="12"/>
+    <text class="lbl" x="360" y="835" text-anchor="middle">5</text>
+    <text class="note" x="404" y="829">motion model, vectorized over all 4000 particles:</text>
+    <text class="note" x="404" y="845">rotate (dx, dy, dθ) into each heading and add it,</text>
+    <text class="note" x="404" y="861">plus Gaussian noise σ 0.05, 0.025, 0.25 on x, y, θ</text>
+
+    <!-- 6: ray-cast query -->
+    <line class="edge" x1="372" y1="920" x2="744" y2="920" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="920" r="12"/>
+    <text class="lbl" x="360" y="925" text-anchor="middle">6</text>
+    <text class="note mono" x="552" y="892" text-anchor="middle">calc_range_repeat_angles(…)</text>
+    <text class="note" x="552" y="908" text-anchor="middle">4000 particle poses × ~60 beam angles</text>
+
+    <!-- 7: expected ranges back -->
+    <line class="edge-dash" x1="733" y1="980" x2="361" y2="980" marker-end="url(#ah)"/>
+    <circle class="b-purple" cx="745" cy="980" r="12"/>
+    <text class="lbl" x="745" y="985" text-anchor="middle">7</text>
+    <text class="note" x="552" y="952" text-anchor="middle">expected ranges, 4000 × ~60</text>
+    <text class="note" x="552" y="968" text-anchor="middle">ray marched against the map on the GPU</text>
+
+    <!-- 8: sensor model evaluation -->
+    <line class="edge" x1="372" y1="1052" x2="744" y2="1052" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="1052" r="12"/>
+    <text class="lbl" x="360" y="1057" text-anchor="middle">8</text>
+    <text class="note mono" x="552" y="1008" text-anchor="middle">eval_sensor_model(obs, ranges, weights, …)</text>
+    <text class="note" x="552" y="1024" text-anchor="middle">per beam: table[observed, expected] from step B;</text>
+    <text class="note" x="552" y="1040" text-anchor="middle">a particle's weight = product over its beams</text>
+
+    <!-- 9: weights back -->
+    <line class="edge-dash" x1="733" y1="1104" x2="361" y2="1104" marker-end="url(#ah)"/>
+    <circle class="b-purple" cx="745" cy="1104" r="12"/>
+    <text class="lbl" x="745" y="1109" text-anchor="middle">9</text>
+    <text class="note" x="552" y="1096" text-anchor="middle">one new weight per particle</text>
+
+    <!-- 10: squash + normalize -->
+    <path class="edge" d="M372,1148 H386 Q394,1148 394,1156 V1162 Q394,1170 386,1170 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="1148" r="12"/>
+    <text class="lbl" x="360" y="1153" text-anchor="middle">10</text>
+    <text class="note" x="404" y="1155">squash: w ← w^(1/2.2), then normalize</text>
+    <text class="note" x="404" y="1171">so the 4000 weights sum to 1</text>
+
+    <!-- 11: expected pose -->
+    <path class="edge" d="M372,1232 H386 Q394,1232 394,1240 V1246 Q394,1254 386,1254 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="1232" r="12"/>
+    <text class="lbl" x="360" y="1237" text-anchor="middle">11</text>
+    <text class="note" x="404" y="1239">pose = weighted mean of x, y, θ over all</text>
+    <text class="note" x="404" y="1255">particles (expected_pose)</text>
+
+    <!-- 12: TF broadcast -->
+    <path class="edge" d="M372,1292 H386 Q394,1292 394,1300 V1306 Q394,1314 386,1314 H362" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="1292" r="12"/>
+    <text class="lbl" x="360" y="1297" text-anchor="middle">12</text>
+    <text class="note" x="404" y="1299">broadcast TF /map → /laser (tf2), stamped</text>
+    <text class="note" x="404" y="1315">with the last /odom message's time</text>
+
+    <!-- 13: pose out -->
+    <line class="edge" x1="372" y1="1400" x2="904" y2="1400" marker-end="url(#ah)"/>
+    <circle class="b-green" cx="360" cy="1400" r="12"/>
+    <text class="lbl" x="360" y="1405" text-anchor="middle">13</text>
+    <text class="note" x="384" y="1352">/pf/pose/odom (Odometry, frame /map):</text>
+    <text class="note" x="384" y="1368">pose + weighted particle covariance +</text>
+    <text class="note" x="384" y="1384">speed copied from the input /odom</text>
+  </g>
+</svg>
